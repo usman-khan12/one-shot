@@ -42,7 +42,7 @@ export async function GET(
       )
     }
 
-    const tempDir = join(process.cwd(), 'temp')
+    const tempDir = '/tmp'
     const filePath = join(tempDir, fileId)
 
     try {

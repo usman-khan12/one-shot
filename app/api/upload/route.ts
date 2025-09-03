@@ -81,16 +81,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generate unique ID and create temp directory
+    // Generate unique ID and use Vercel's writable /tmp directory
     const fileId = uuidv4()
-    const tempDir = join(process.cwd(), 'temp')
+    const tempDir = '/tmp'
     
-    try {
-      await mkdir(tempDir, { recursive: true })
-    } catch (error) {
-      // Directory might already exist
-    }
-
     // Save file to temp directory
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
@@ -120,7 +114,7 @@ export async function POST(request: NextRequest) {
       if (metadata.uploadTime < fiveMinutesAgo) {
         try {
           const { unlink } = await import('fs/promises')
-          await unlink(join(tempDir, id))
+          await unlink(join('/tmp', id))
         } catch (error) {
           // File might already be deleted
         }
