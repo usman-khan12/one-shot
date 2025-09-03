@@ -34,6 +34,14 @@ export async function GET(
       }
     }
 
+    // Ensure fileMetadata is not undefined
+    if (!fileMetadata) {
+      return NextResponse.json(
+        { success: false, error: 'File not found or already downloaded' },
+        { status: 404 }
+      )
+    }
+
     // Check if file is too old (5 minutes limit)
     const fiveMinutesAgo = Date.now() - (5 * 60 * 1000)
     if (fileMetadata.uploadTime < fiveMinutesAgo) {
