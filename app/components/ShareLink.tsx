@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import QRCode from './QRCode'
 
 interface ShareLinkProps {
   fileData: {
@@ -71,8 +72,8 @@ export default function ShareLink({ fileData, onReset }: ShareLinkProps) {
         </div>
       </div>
 
-      {/* Download Link */}
-      <div className="space-y-4">
+      {/* Download Link and QR Code */}
+      <div className="space-y-6">
         <label className="block text-white/90 font-medium text-base">
           Share this link:
         </label>
@@ -106,6 +107,21 @@ export default function ShareLink({ fileData, onReset }: ShareLinkProps) {
               </div>
             )}
           </button>
+        </div>
+
+        {/* QR Code Section */}
+        <div className="glass rounded-2xl p-6 glow">
+          <div className="text-center mb-4">
+            <h3 className="text-white/90 font-medium text-lg mb-2">
+              Or scan QR code
+            </h3>
+            <p className="text-white/60 text-sm">
+              Perfect for sharing with mobile devices
+            </p>
+          </div>
+          <div className="flex justify-center">
+            <QRCode url={fullUrl} size={180} />
+          </div>
         </div>
       </div>
 
