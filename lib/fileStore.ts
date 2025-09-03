@@ -6,6 +6,7 @@ export interface FileMetadata {
   originalName: string
   size: number
   uploadTime: number
+  blobUrl?: string
 }
 
 // Global stores that persist across requests

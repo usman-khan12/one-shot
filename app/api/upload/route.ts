@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
+import { put } from '@vercel/blob'
 import { v4 as uuidv4 } from 'uuid'
 import { fileStore, rateLimitStore, cleanupExpiredFiles, cleanupExpiredRateLimits } from '@/lib/fileStore'
 
@@ -81,50 +80,30 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generate unique ID and use Vercel's writable /tmp directory
+    // Generate unique ID and upload to Vercel Blob
     const fileId = uuidv4()
-    const tempDir = '/tmp'
     
-    // Save file to temp directory
-    const bytes = await file.arrayBuffer()
-    const buffer = Buffer.from(bytes)
-    const filePath = join(tempDir, fileId)
-    
-    await writeFile(filePath, buffer)
+    // Upload file to Vercel Blob
+    const blob = await put(`${fileId}-${file.name}`, file, {
+      access: 'public',
+      addRandomSuffix: false
+    })
 
     // Store file metadata
     const metadata = {
       filename: fileId,
       originalName: file.name,
       size: file.size,
-      uploadTime: Date.now()
+      uploadTime: Date.now(),
+      blobUrl: blob.url
     }
     fileStore.set(fileId, metadata)
     
-    // Also store metadata in file system for Vercel compatibility
-    const metadataPath = join('/tmp', `${fileId}.meta`)
-    await writeFile(metadataPath, JSON.stringify(metadata))
-    
-    console.log(`File uploaded: ${fileId}, store size: ${fileStore.size}`)
+    console.log(`File uploaded: ${fileId}, blob URL: ${blob.url}, store size: ${fileStore.size}`)
 
     // Clean up old files and rate limits
     cleanupExpiredFiles()
     cleanupExpiredRateLimits()
-    
-    // Also clean up actual files from temp directory
-    const fiveMinutesAgo = Date.now() - (5 * 60 * 1000)
-    const entries = Array.from(fileStore.entries())
-    for (const [id, metadata] of entries) {
-      if (metadata.uploadTime < fiveMinutesAgo) {
-        try {
-          const { unlink } = await import('fs/promises')
-          await unlink(join('/tmp', id))
-          await unlink(join('/tmp', `${id}.meta`))
-        } catch (error) {
-          // File might already be deleted
-        }
-      }
-    }
 
     return NextResponse.json({
       success: true,

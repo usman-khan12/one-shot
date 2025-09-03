@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fileStore } from '@/lib/fileStore'
-import { readFile } from 'fs/promises'
-import { join } from 'path'
 
 export async function GET(
   request: NextRequest,
@@ -17,29 +15,12 @@ export async function GET(
       )
     }
 
-    // Check if file exists in store first
+    // Check if file exists in store
     console.log(`File info request for: ${fileId}, store size: ${fileStore.size}`)
-    let fileMetadata = fileStore.get(fileId)
+    const fileMetadata = fileStore.get(fileId)
     
-    // If not in store (Vercel serverless issue), try to read from file system
     if (!fileMetadata) {
-      try {
-        const metadataPath = join('/tmp', `${fileId}.meta`)
-        console.log(`Reading metadata from: ${metadataPath}`)
-        const metadataContent = await readFile(metadataPath, 'utf-8')
-        fileMetadata = JSON.parse(metadataContent)
-        console.log(`File metadata loaded from file system: ${fileMetadata?.originalName || 'unknown'}`)
-      } catch (error) {
-        console.log(`File ${fileId} not found in store or file system:`, error)
-        return NextResponse.json(
-          { success: false, error: 'File not found or already downloaded' },
-          { status: 404 }
-        )
-      }
-    }
-
-    // Ensure fileMetadata is not undefined
-    if (!fileMetadata) {
+      console.log(`File ${fileId} not found in store`)
       return NextResponse.json(
         { success: false, error: 'File not found or already downloaded' },
         { status: 404 }

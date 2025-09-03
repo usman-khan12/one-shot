@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readFile, unlink } from 'fs/promises'
-import { join } from 'path'
+import { del } from '@vercel/blob'
 import { fileStore } from '@/lib/fileStore'
 
 export async function GET(
@@ -17,30 +16,13 @@ export async function GET(
       )
     }
 
-    // Check if file exists in store first
+    // Check if file exists in store
     console.log(`Download request for: ${fileId}, store size: ${fileStore.size}`)
     console.log(`Available files:`, Array.from(fileStore.keys()))
     
-    let fileMetadata = fileStore.get(fileId)
-    
-    // If not in store (Vercel serverless issue), try to read from file system
+    const fileMetadata = fileStore.get(fileId)
     if (!fileMetadata) {
-      try {
-        const metadataPath = join('/tmp', `${fileId}.meta`)
-        const metadataContent = await readFile(metadataPath, 'utf-8')
-        fileMetadata = JSON.parse(metadataContent)
-        console.log(`File metadata loaded from file system: ${fileMetadata?.originalName || 'unknown'}`)
-      } catch (error) {
-        console.log(`File ${fileId} not found in store or file system`)
-        return NextResponse.json(
-          { error: 'File not found or already downloaded' },
-          { status: 404 }
-        )
-      }
-    }
-    
-    // Ensure fileMetadata is not undefined
-    if (!fileMetadata) {
+      console.log(`File ${fileId} not found in store`)
       return NextResponse.json(
         { error: 'File not found or already downloaded' },
         { status: 404 }
@@ -52,6 +34,14 @@ export async function GET(
     // Check if file is too old (5 minutes limit)
     const fiveMinutesAgo = Date.now() - (5 * 60 * 1000)
     if (fileMetadata.uploadTime < fiveMinutesAgo) {
+      // Delete from Vercel Blob if it exists
+      if (fileMetadata.blobUrl) {
+        try {
+          await del(fileMetadata.blobUrl)
+        } catch (error) {
+          console.log('Error deleting blob:', error)
+        }
+      }
       fileStore.delete(fileId)
       return NextResponse.json(
         { error: 'File has expired' },
@@ -59,47 +49,25 @@ export async function GET(
       )
     }
 
-    const tempDir = '/tmp'
-    const filePath = join(tempDir, fileId)
-
-    try {
-      // Read the file
-      const fileBuffer = await readFile(filePath)
-
-      // Delete the file immediately after reading (one-time use)
-      await unlink(filePath)
-      fileStore.delete(fileId)
-      
-      // Also delete metadata file
+    // Delete from Vercel Blob (one-time use)
+    if (fileMetadata.blobUrl) {
       try {
-        const metadataPath = join('/tmp', `${fileId}.meta`)
-        await unlink(metadataPath)
+        await del(fileMetadata.blobUrl)
+        console.log(`Deleted blob: ${fileMetadata.blobUrl}`)
       } catch (error) {
-        // Metadata file might already be deleted
+        console.log('Error deleting blob:', error)
       }
+    }
+    
+    // Remove from store
+    fileStore.delete(fileId)
 
-      // Return the file with proper headers
-      // Convert Buffer to ArrayBuffer to ensure compatibility with NextResponse
-      const arrayBuffer = new ArrayBuffer(fileBuffer.length)
-      const uint8Array = new Uint8Array(arrayBuffer)
-      uint8Array.set(fileBuffer)
-      return new NextResponse(arrayBuffer, {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/octet-stream',
-          'Content-Disposition': `attachment; filename="${fileMetadata.originalName}"`,
-          'Content-Length': fileMetadata.size.toString(),
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
-        },
-      })
-
-    } catch (fileError) {
-      // File might have been deleted already
-      fileStore.delete(fileId)
+    // Redirect to the blob URL for download (if it still exists)
+    if (fileMetadata.blobUrl) {
+      return NextResponse.redirect(fileMetadata.blobUrl)
+    } else {
       return NextResponse.json(
-        { error: 'File not found or already downloaded' },
+        { error: 'File not available' },
         { status: 404 }
       )
     }
