@@ -18,15 +18,19 @@ export async function GET(
     }
 
     // Check if file exists in store first
+    console.log(`File info request for: ${fileId}, store size: ${fileStore.size}`)
     let fileMetadata = fileStore.get(fileId)
     
     // If not in store (Vercel serverless issue), try to read from file system
     if (!fileMetadata) {
       try {
         const metadataPath = join('/tmp', `${fileId}.meta`)
+        console.log(`Reading metadata from: ${metadataPath}`)
         const metadataContent = await readFile(metadataPath, 'utf-8')
         fileMetadata = JSON.parse(metadataContent)
+        console.log(`File metadata loaded from file system: ${fileMetadata.originalName}`)
       } catch (error) {
+        console.log(`File ${fileId} not found in store or file system:`, error)
         return NextResponse.json(
           { success: false, error: 'File not found or already downloaded' },
           { status: 404 }
