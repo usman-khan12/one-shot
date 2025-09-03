@@ -54,7 +54,11 @@ export async function GET(
       fileStore.delete(fileId)
 
       // Return the file with proper headers
-      return new NextResponse(fileBuffer.buffer.slice(fileBuffer.byteOffset, fileBuffer.byteOffset + fileBuffer.byteLength), {
+      // Convert Buffer to ArrayBuffer to ensure compatibility with NextResponse
+      const arrayBuffer = new ArrayBuffer(fileBuffer.length)
+      const uint8Array = new Uint8Array(arrayBuffer)
+      uint8Array.set(fileBuffer)
+      return new NextResponse(arrayBuffer, {
         status: 200,
         headers: {
           'Content-Type': 'application/octet-stream',
