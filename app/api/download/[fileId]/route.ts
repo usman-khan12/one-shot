@@ -54,7 +54,7 @@ export async function GET(
       fileStore.delete(fileId)
 
       // Return the file with proper headers
-      return new NextResponse(fileBuffer, {
+      return new NextResponse(fileBuffer.buffer.slice(fileBuffer.byteOffset, fileBuffer.byteOffset + fileBuffer.byteLength), {
         status: 200,
         headers: {
           'Content-Type': 'application/octet-stream',
