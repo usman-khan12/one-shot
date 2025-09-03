@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { del } from '@vercel/blob'
-import { fileStore } from '@/lib/fileStore'
+import { supabase, STORAGE_BUCKET } from '@/lib/supabase'
 
 export async function GET(
   request: NextRequest,
@@ -16,61 +15,58 @@ export async function GET(
       )
     }
 
-    // Check if file exists in store
-    console.log(`Download request for: ${fileId}, store size: ${fileStore.size}`)
-    console.log(`Available files:`, Array.from(fileStore.keys()))
+    // Get file from Supabase storage
+    console.log(`Download request for: ${fileId}`)
     
-    const fileMetadata = fileStore.get(fileId)
-    if (!fileMetadata) {
-      console.log(`File ${fileId} not found in store`)
+    const { data: fileData, error: downloadError } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .download(`${fileId}`)
+
+    if (downloadError || !fileData) {
+      console.log(`File ${fileId} not found in Supabase storage:`, downloadError)
       return NextResponse.json(
         { error: 'File not found or already downloaded' },
         { status: 404 }
       )
     }
-    
-    console.log(`File found: ${fileMetadata.originalName}`)
 
-    // Check if file is too old (5 minutes limit)
-    const fiveMinutesAgo = Date.now() - (5 * 60 * 1000)
-    if (fileMetadata.uploadTime < fiveMinutesAgo) {
-      // Delete from Vercel Blob if it exists
-      if (fileMetadata.blobUrl) {
-        try {
-          await del(fileMetadata.blobUrl)
-        } catch (error) {
-          console.log('Error deleting blob:', error)
-        }
-      }
-      fileStore.delete(fileId)
-      return NextResponse.json(
-        { error: 'File has expired' },
-        { status: 410 }
-      )
-    }
+    // Get file metadata
+    const { data: fileInfo } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .list('', {
+        search: fileId
+      })
 
-    // Delete from Vercel Blob (one-time use)
-    if (fileMetadata.blobUrl) {
-      try {
-        await del(fileMetadata.blobUrl)
-        console.log(`Deleted blob: ${fileMetadata.blobUrl}`)
-      } catch (error) {
-        console.log('Error deleting blob:', error)
-      }
-    }
-    
-    // Remove from store
-    fileStore.delete(fileId)
+    // Delete file from storage (one-time use)
+    const { error: deleteError } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .remove([`${fileId}`])
 
-    // Redirect to the blob URL for download (if it still exists)
-    if (fileMetadata.blobUrl) {
-      return NextResponse.redirect(fileMetadata.blobUrl)
+    if (deleteError) {
+      console.error('Error deleting file:', deleteError)
     } else {
-      return NextResponse.json(
-        { error: 'File not available' },
-        { status: 404 }
-      )
+      console.log(`Deleted file from Supabase storage: ${fileId}`)
     }
+
+    // Convert blob to buffer
+    const arrayBuffer = await fileData.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+    
+    // Get original filename from file info or use fileId
+    const originalName = fileInfo?.[0]?.name || `${fileId}`
+    
+    // Return the file with proper headers
+    return new NextResponse(buffer, {
+      status: 200,
+      headers: {
+        'Content-Type': fileData.type || 'application/octet-stream',
+        'Content-Disposition': `attachment; filename="${originalName}"`,
+        'Content-Length': buffer.length.toString(),
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
+    })
 
   } catch (error) {
     console.error('Download error:', error)

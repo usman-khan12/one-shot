@@ -16,8 +16,9 @@ A modern, secure file sharing web application that allows users to upload files 
 
 - **Frontend**: Next.js 14, React, TypeScript, Tailwind CSS
 - **Backend**: Next.js API Routes
+- **Storage**: Supabase Storage (Secure, reliable cloud storage)
 - **Deployment**: Vercel
-- **Security**: File validation, rate limiting, automatic cleanup
+- **Security**: File validation, rate limiting, automatic cleanup, RLS policies
 
 ## Getting Started
 

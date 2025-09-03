@@ -1,35 +1,13 @@
-// Shared file store for the application
-// In production, this should be replaced with Redis or a database
+// Rate limiting store for the application
+// Files are now stored in Supabase, this is only for rate limiting
 
-export interface FileMetadata {
-  filename: string
-  originalName: string
-  size: number
-  uploadTime: number
-  blobUrl?: string
-}
-
-// Global stores that persist across requests
+// Global rate limit store that persists across requests
 declare global {
-  var __fileStore: Map<string, FileMetadata> | undefined
   var __rateLimitStore: Map<string, { count: number; resetTime: number }> | undefined
 }
 
-// Use global variables to ensure the stores persist across requests
-export const fileStore = globalThis.__fileStore ?? (globalThis.__fileStore = new Map<string, FileMetadata>())
+// Use global variable to ensure the rate limit store persists across requests
 export const rateLimitStore = globalThis.__rateLimitStore ?? (globalThis.__rateLimitStore = new Map<string, { count: number; resetTime: number }>())
-
-// Cleanup function to remove expired files
-export function cleanupExpiredFiles() {
-  const fiveMinutesAgo = Date.now() - (5 * 60 * 1000)
-  
-  const entries = Array.from(fileStore.entries())
-  for (const [id, metadata] of entries) {
-    if (metadata.uploadTime < fiveMinutesAgo) {
-      fileStore.delete(id)
-    }
-  }
-}
 
 // Cleanup function for rate limit store
 export function cleanupExpiredRateLimits() {

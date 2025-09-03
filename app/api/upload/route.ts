@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { put } from '@vercel/blob'
 import { v4 as uuidv4 } from 'uuid'
-import { fileStore, rateLimitStore, cleanupExpiredFiles, cleanupExpiredRateLimits } from '@/lib/fileStore'
+import { rateLimitStore, cleanupExpiredRateLimits } from '@/lib/fileStore'
+import { supabase, STORAGE_BUCKET } from '@/lib/supabase'
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
 const RATE_LIMIT_WINDOW = 15 * 60 * 1000 // 15 minutes
@@ -80,29 +80,34 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generate unique ID and upload to Vercel Blob
+    // Generate unique ID
     const fileId = uuidv4()
     
-    // Upload file to Vercel Blob
-    const blob = await put(`${fileId}-${file.name}`, file, {
-      access: 'public',
-      addRandomSuffix: false
-    })
+    // Upload file to Supabase storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .upload(`${fileId}`, file, {
+        contentType: file.type,
+        cacheControl: '3600',
+        upsert: false
+      })
 
-    // Store file metadata
-    const metadata = {
-      filename: fileId,
-      originalName: file.name,
-      size: file.size,
-      uploadTime: Date.now(),
-      blobUrl: blob.url
+    if (uploadError) {
+      console.error('Supabase upload error:', uploadError)
+      return NextResponse.json(
+        { success: false, error: 'Upload failed' },
+        { status: 500 }
+      )
     }
-    fileStore.set(fileId, metadata)
-    
-    console.log(`File uploaded: ${fileId}, blob URL: ${blob.url}, store size: ${fileStore.size}`)
 
-    // Clean up old files and rate limits
-    cleanupExpiredFiles()
+    // Get public URL for the uploaded file
+    const { data: urlData } = supabase.storage
+      .from(STORAGE_BUCKET)
+      .getPublicUrl(`${fileId}`)
+
+    console.log(`File uploaded to Supabase: ${fileId}, size: ${file.size} bytes`)
+
+    // Clean up old rate limits
     cleanupExpiredRateLimits()
 
     return NextResponse.json({
@@ -120,5 +125,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-
-// File store is now shared via lib/fileStore.ts

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { fileStore } from '@/lib/fileStore'
+import { supabase, STORAGE_BUCKET } from '@/lib/supabase'
 
 export async function GET(
   request: NextRequest,
@@ -15,31 +15,51 @@ export async function GET(
       )
     }
 
-    // Check if file exists in store
-    console.log(`File info request for: ${fileId}, store size: ${fileStore.size}`)
-    const fileMetadata = fileStore.get(fileId)
+    // Check if file exists in Supabase storage
+    console.log(`File info request for: ${fileId}`)
     
-    if (!fileMetadata) {
-      console.log(`File ${fileId} not found in store`)
+    const { data: fileList, error: listError } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .list('', {
+        search: fileId
+      })
+
+    if (listError || !fileList || fileList.length === 0) {
+      console.log(`File ${fileId} not found in Supabase storage:`, listError)
       return NextResponse.json(
         { success: false, error: 'File not found or already downloaded' },
         { status: 404 }
       )
     }
 
+    const fileInfo = fileList[0]
+    
     // Check if file is too old (5 minutes limit)
     const fiveMinutesAgo = Date.now() - (5 * 60 * 1000)
-    if (fileMetadata.uploadTime < fiveMinutesAgo) {
-      fileStore.delete(fileId)
+    const fileCreatedAt = new Date(fileInfo.created_at).getTime()
+    
+    if (fileCreatedAt < fiveMinutesAgo) {
+      // Delete expired file
+      await supabase.storage
+        .from(STORAGE_BUCKET)
+        .remove([`${fileId}`])
+      
       return NextResponse.json(
         { success: false, error: 'File has expired' },
         { status: 410 }
       )
     }
 
+    // Return file metadata
     return NextResponse.json({
       success: true,
-      fileData: fileMetadata
+      fileData: {
+        filename: fileInfo.name,
+        originalName: fileInfo.name,
+        size: fileInfo.metadata?.size || 0,
+        uploadTime: fileCreatedAt,
+        contentType: fileInfo.metadata?.mimetype || 'application/octet-stream'
+      }
     })
 
   } catch (error) {
