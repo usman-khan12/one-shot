@@ -22,7 +22,8 @@ export const rateLimitStore = globalThis.__rateLimitStore ?? (globalThis.__rateL
 export function cleanupExpiredFiles() {
   const fiveMinutesAgo = Date.now() - (5 * 60 * 1000)
   
-  for (const [id, metadata] of fileStore.entries()) {
+  const entries = Array.from(fileStore.entries())
+  for (const [id, metadata] of entries) {
     if (metadata.uploadTime < fiveMinutesAgo) {
       fileStore.delete(id)
     }
@@ -33,7 +34,8 @@ export function cleanupExpiredFiles() {
 export function cleanupExpiredRateLimits() {
   const now = Date.now()
   
-  for (const [ip, data] of rateLimitStore.entries()) {
+  const entries = Array.from(rateLimitStore.entries())
+  for (const [ip, data] of entries) {
     if (now > data.resetTime) {
       rateLimitStore.delete(ip)
     }
