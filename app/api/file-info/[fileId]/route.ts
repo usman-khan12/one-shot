@@ -28,7 +28,7 @@ export async function GET(
         console.log(`Reading metadata from: ${metadataPath}`)
         const metadataContent = await readFile(metadataPath, 'utf-8')
         fileMetadata = JSON.parse(metadataContent)
-        console.log(`File metadata loaded from file system: ${fileMetadata.originalName}`)
+        console.log(`File metadata loaded from file system: ${fileMetadata?.originalName || 'unknown'}`)
       } catch (error) {
         console.log(`File ${fileId} not found in store or file system:`, error)
         return NextResponse.json(
