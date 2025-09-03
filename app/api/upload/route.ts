@@ -115,7 +115,8 @@ export async function POST(request: NextRequest) {
     
     // Also clean up actual files from temp directory
     const fiveMinutesAgo = Date.now() - (5 * 60 * 1000)
-    for (const [id, metadata] of fileStore.entries()) {
+    const entries = Array.from(fileStore.entries())
+    for (const [id, metadata] of entries) {
       if (metadata.uploadTime < fiveMinutesAgo) {
         try {
           const { unlink } = await import('fs/promises')
