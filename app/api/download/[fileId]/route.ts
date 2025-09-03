@@ -52,6 +52,14 @@ export async function GET(
       // Delete the file immediately after reading (one-time use)
       await unlink(filePath)
       fileStore.delete(fileId)
+      
+      // Also delete metadata file
+      try {
+        const metadataPath = join('/tmp', `${fileId}.meta`)
+        await unlink(metadataPath)
+      } catch (error) {
+        // Metadata file might already be deleted
+      }
 
       // Return the file with proper headers
       // Convert Buffer to ArrayBuffer to ensure compatibility with NextResponse

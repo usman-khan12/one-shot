@@ -101,6 +101,10 @@ export async function POST(request: NextRequest) {
     }
     fileStore.set(fileId, metadata)
     
+    // Also store metadata in file system for Vercel compatibility
+    const metadataPath = join('/tmp', `${fileId}.meta`)
+    await writeFile(metadataPath, JSON.stringify(metadata))
+    
     console.log(`File uploaded: ${fileId}, store size: ${fileStore.size}`)
 
     // Clean up old files and rate limits
@@ -115,6 +119,7 @@ export async function POST(request: NextRequest) {
         try {
           const { unlink } = await import('fs/promises')
           await unlink(join('/tmp', id))
+          await unlink(join('/tmp', `${id}.meta`))
         } catch (error) {
           // File might already be deleted
         }
